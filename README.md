@@ -206,11 +206,6 @@ docker system prune -a
 # Rebuild image
 docker-compose build --no-cache
 ```
-
-## 📝 License
-
-This template is based on the KENTHDEV-CMS project and is available under the same license terms.
-
 ## 🤝 Contributing
 
 1. Fork the repository
