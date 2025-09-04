@@ -1,0 +1,196 @@
+# WordPress Headless API Template - .gitignore
+
+# WordPress Core Files
+wp-admin/
+wp-includes/
+index.php
+wp-*.php
+xmlrpc.php
+license.txt
+readme.html
+wp-config.php
+
+# WordPress Generated Files
+.htaccess
+sitemap.xml
+sitemap.xsl
+robots.txt
+
+# WordPress Content - User Generated
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/backup*/
+wp-content/cache/
+wp-content/backups/
+
+# WordPress Themes (keep only custom themes)
+wp-content/themes/twenty*/
+wp-content/themes/*/
+!wp-content/themes/headless-api/
+
+# WordPress Plugins (keep only custom plugins)
+wp-content/plugins/*/
+!wp-content/plugins/custom-*/
+!wp-content/plugins/README.md
+
+# Always ignore these plugin directories
+wp-content/plugins/akismet/
+wp-content/plugins/hello.php
+
+# WordPress Must-Use Plugins (version control these)
+!wp-content/mu-plugins/
+
+# Environment and Configuration Files
+.env
+.env.local
+.env.production
+.env.staging
+wp-config-local.php
+
+# Database Files
+*.sql
+*.sql.gz
+database/backup/
+database/dumps/
+
+# Keep template schema for Azure MySQL setup
+!database/schema.sql
+!database/migrations/
+
+# Logs
+*.log
+error_log
+debug.log
+wp-content/debug.log
+
+# Docker Files (keep templates)
+docker-compose.override.yml
+
+# SSL Certificates (downloaded at runtime)
+*.pem
+*.crt
+*.key
+ssl/
+
+# Temporary Files
+wp-content/temp/
+tmp/
+temp/
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Node.js (if using build tools)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Composer (if using PHP dependencies)
+vendor/
+composer.lock
+
+# Build Tools
+.sass-cache/
+.gulp/
+dist/
+build/
+
+# Testing
+phpunit.xml
+.phpunit.result.cache
+tests/_output/
+
+# Package Managers
+package-lock.json
+yarn.lock
+
+# Operating System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Backup Files
+*~
+*.bak
+*.backup
+*.old
+
+# Runtime and Cache
+.cache/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and Reports
+coverage/
+*.lcov
+.nyc_output/
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.parcel-cache/
+
+# next.js build output
+.next
+
+# nuxt.js build output
+.nuxt
+
+# vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port

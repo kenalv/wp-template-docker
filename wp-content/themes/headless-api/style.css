@@ -1,0 +1,66 @@
+/*
+Theme Name: Headless API Theme
+Description: Minimal WordPress theme optimized for headless/REST API usage. Provides essential functionality for API endpoints without frontend rendering.
+Version: 1.0.0
+Author: Your Name
+Text Domain: headless-api
+*/
+
+/* Minimal styles for admin interface only */
+.admin-bar {
+    background: #23282d;
+}
+
+/* Hide frontend elements that aren't needed for API */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* API documentation styles for frontend visits */
+.api-info {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 20px;
+    font-family: system-ui, sans-serif;
+    line-height: 1.6;
+}
+
+.api-info h1 {
+    color: #333;
+    border-bottom: 2px solid #0073aa;
+    padding-bottom: 10px;
+}
+
+.api-info code {
+    background: #f4f4f4;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+}
+
+.api-info pre {
+    background: #f4f4f4;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto;
+}
+
+.api-endpoint {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.api-endpoint h3 {
+    margin-top: 0;
+    color: #0073aa;
+}
+
+.method-get { border-left: 4px solid #28a745; }
+.method-post { border-left: 4px solid #007bff; }
+.method-put { border-left: 4px solid #ffc107; }
+.method-delete { border-left: 4px solid #dc3545; }

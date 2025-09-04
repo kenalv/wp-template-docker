@@ -1,0 +1,100 @@
+services:
+  wordpress:
+    image: ghcr.io/${GITHUB_REPOSITORY}:latest
+    container_name: ${PROJECT_NAME}
+    restart: unless-stopped
+    environment:
+      # Database Configuration
+      WORDPRESS_DB_HOST: ${DB_HOST}
+      WORDPRESS_DB_USER: ${DB_USER}
+      WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
+      WORDPRESS_DB_NAME: ${DB_NAME}
+      
+      # WordPress Configuration for Production
+      WORDPRESS_CONFIG_EXTRA: |
+        /* Azure MySQL SSL Configuration */
+        define('MYSQL_SSL_CA', '/var/www/html/DigiCertGlobalRootCA.crt.pem');
+        define('MYSQL_CLIENT_FLAGS', MYSQLI_CLIENT_SSL);
+        
+        /* Production Configuration */
+        define('WP_DEBUG', false);
+        define('WP_DEBUG_LOG', false);
+        define('WP_DEBUG_DISPLAY', false);
+        define('SCRIPT_DEBUG', false);
+        
+        /* Performance Configuration */
+        define('WP_POST_REVISIONS', 3);
+        define('AUTOSAVE_INTERVAL', 300);
+        define('WP_CRON_LOCK_TIMEOUT', 60);
+        define('AUTOMATIC_UPDATER_DISABLED', true);
+        
+        /* Security */
+        define('DISALLOW_FILE_EDIT', true);
+        define('FORCE_SSL_ADMIN', true);
+        
+        /* File Upload Configuration */
+        ini_set('upload_max_filesize', '128M');
+        ini_set('post_max_size', '128M');
+        ini_set('max_execution_time', 300);
+        ini_set('memory_limit', '512M');
+        
+        /* API Configuration */
+        define('JWT_AUTH_SECRET_KEY', '${JWT_SECRET_KEY}');
+        define('JWT_AUTH_CORS_ENABLE', true);
+    
+    volumes:
+      # Persistent storage for uploads only
+      - wp_uploads:/var/www/html/wp-content/uploads
+    
+    networks:
+      - webapps  # External Traefik network
+    
+    labels:
+      # Traefik configuration
+      - "traefik.enable=true"
+      - "traefik.docker.network=webapps"
+      
+      # HTTP to HTTPS redirect
+      - "traefik.http.routers.${PROJECT_NAME}-http.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-http.entrypoints=web"
+      - "traefik.http.routers.${PROJECT_NAME}-http.middlewares=https-redirect"
+      
+      # HTTPS configuration
+      - "traefik.http.routers.${PROJECT_NAME}-https.rule=Host(`${DOMAIN}`) || Host(`www.${DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-https.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-https.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-https.tls.certresolver=le"
+      
+      # Service configuration
+      - "traefik.http.services.${PROJECT_NAME}.loadbalancer.server.port=80"
+      
+      # Middleware for HTTP to HTTPS redirect
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      # Security headers middleware
+      # - "traefik.http.middlewares.${PROJECT_NAME}-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      # - "traefik.http.middlewares.${PROJECT_NAME}-headers.headers.customrequestheaders.X-Forwarded-For=$$remote_addr"
+      # - "traefik.http.routers.${PROJECT_NAME}-https.middlewares=${PROJECT_NAME}-headers"
+
+      # Security headers
+      - "traefik.http.middlewares.wordpress-headers.headers.frameDeny=true"
+      - "traefik.http.middlewares.wordpress-headers.headers.sslRedirect=true"
+      - "traefik.http.middlewares.wordpress-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.wordpress-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.routers.wordpress-https.middlewares=wordpress-headers"
+      
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/wp-admin/admin-ajax.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  wp_uploads:
+
+networks:
+  webapps:
+    external: true

@@ -1,0 +1,232 @@
+name: Build and Deploy WordPress Headless API
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test and Lint
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.3'
+        extensions: mysqli, pdo, pdo_mysql
+        tools: composer
+
+    - name: Validate PHP files
+      run: |
+        find . -name "*.php" -not -path "./wp-content/uploads/*" | xargs -I {} php -l {}
+        echo "✅ PHP syntax validation passed"
+
+    - name: Check Docker configuration
+      run: |
+        docker-compose config -q
+        echo "✅ Docker Compose configuration is valid"
+
+    - name: Security scan
+      run: |
+        # Check for sensitive files
+        if find . -name ".env" -not -path "./.env.example" | grep -q .; then
+          echo "❌ Found .env files in repository"
+          exit 1
+        fi
+        
+        # Check for debug settings in production files
+        if grep -r "WP_DEBUG.*true" . --include="*.php" --exclude-dir=".git"; then
+          echo "⚠️ Found debug settings - ensure they're conditional"
+        fi
+        
+        echo "✅ Security scan completed"
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    name: Build Docker Image
+    
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-url: ${{ steps.build.outputs.registry }}/${{ steps.build.outputs.image }}:${{ steps.build.outputs.tag }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      id: build
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VCS_REF=${{ github.sha }}
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        format: spdx-json
+        output-file: sbom.spdx.json
+      if: github.event_name != 'pull_request'
+
+    - name: Upload SBOM
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom
+        path: sbom.spdx.json
+      if: github.event_name != 'pull_request'
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    environment: production
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup SSH
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+    - name: Add VPS to known hosts
+      run: |
+        ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Deploy to VPS
+      run: |
+        echo "🚀 Deploying to production server..."
+        
+        ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+          set -e
+          
+          # Navigate to project directory
+          cd ${{ secrets.DEPLOY_PATH || '/opt/wordpress-headless' }}
+          
+          # Pull latest configuration
+          git pull origin main
+          
+          # Update environment variables
+          if [ -f .env.production ]; then
+            cp .env.production .env
+          fi
+          
+          # Pull latest Docker image
+          docker-compose -f docker-compose.prod.yml pull
+          
+          # Restart services with zero downtime
+          docker-compose -f docker-compose.prod.yml up -d
+          
+          # Wait for health check
+          echo "⏳ Waiting for services to be healthy..."
+          timeout 120s bash -c 'until docker ps --filter "health=healthy" --filter "name=wordpress" --format "table {{.Names}}" | grep -q wordpress; do sleep 5; done'
+          
+          # Clean up old images
+          docker image prune -f
+          
+          echo "✅ Deployment completed successfully!"
+        EOF
+
+    - name: Health Check
+      run: |
+        echo "🔍 Performing health check..."
+        
+        # Wait a bit for services to fully start
+        sleep 30
+        
+        # Check if the site responds
+        response=$(curl -s -o /dev/null -w "%{http_code}" https://${{ secrets.DOMAIN }}/wp-json/custom/v1/health || echo "000")
+        
+        if [ "$response" = "200" ]; then
+          echo "✅ Health check passed - Site is responding"
+        else
+          echo "❌ Health check failed - HTTP $response"
+          exit 1
+        fi
+
+    - name: Notify Deployment
+      if: always()
+      run: |
+        if [ ${{ job.status }} = "success" ]; then
+          echo "✅ Deployment successful to https://${{ secrets.DOMAIN }}"
+        else
+          echo "❌ Deployment failed"
+        fi
+      # You can add Slack/Discord/Email notifications here
+
+  cleanup:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    name: Cleanup
+    if: always() && github.event_name != 'pull_request'
+    
+    steps:
+    - name: Delete old container images
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const response = await github.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+            package_type: 'container',
+            package_name: '${{ env.IMAGE_NAME }}',
+            org: '${{ github.repository_owner }}',
+          });
+          
+          // Keep the latest 10 versions
+          const versionsToDelete = response.data
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .slice(10);
+          
+          for (const version of versionsToDelete) {
+            if (version.metadata.container.tags.length === 0) {
+              console.log(`Deleting untagged version ${version.id}`);
+              await github.rest.packages.deletePackageVersionForOrg({
+                package_type: 'container',
+                package_name: '${{ env.IMAGE_NAME }}',
+                org: '${{ github.repository_owner }}',
+                package_version_id: version.id,
+              });
+            }
+          }
