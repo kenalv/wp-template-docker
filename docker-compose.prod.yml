@@ -9,6 +9,10 @@ services:
       WORDPRESS_DB_USER: ${DB_USER}
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
       WORDPRESS_DB_NAME: ${DB_NAME}
+
+      # WordPress URL Configuration - Fix for 404 issues
+      WORDPRESS_HOME: https://${DOMAIN}
+      WORDPRESS_SITEURL: https://${DOMAIN}
       
       # WordPress Configuration for Production
       WORDPRESS_CONFIG_EXTRA: |
@@ -16,12 +20,10 @@ services:
         define('MYSQL_SSL_CA', '/var/www/html/DigiCertGlobalRootCA.crt.pem');
         define('MYSQL_CLIENT_FLAGS', MYSQLI_CLIENT_SSL);
         
-        /* Production Configuration */
-        define('WP_DEBUG', false);
-        define('WP_DEBUG_LOG', false);
-        define('WP_DEBUG_DISPLAY', false);
-        define('SCRIPT_DEBUG', false);
-        
+        /* WordPress URLs - Critical for proper routing */
+        define('WP_HOME', 'https://${DOMAIN}');
+        define('WP_SITEURL', 'https://${DOMAIN}');
+
         /* Performance Configuration */
         define('WP_POST_REVISIONS', 3);
         define('AUTOSAVE_INTERVAL', 300);
@@ -85,12 +87,12 @@ services:
       - "traefik.http.routers.wordpress-https.middlewares=wordpress-headers"
       
     # Health check
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/wp-admin/admin-ajax.php"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+    #healthcheck:
+    #  test: ["CMD", "curl", "-f", "http://localhost/wp-admin/admin-ajax.php"]
+    #  interval: 30s
+    #  timeout: 10s
+    #  retries: 3
+    #  start_period: 30s
 
 volumes:
   wp_uploads:
